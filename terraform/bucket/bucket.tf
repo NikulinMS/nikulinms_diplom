@@ -43,14 +43,3 @@ skip_s3_checksum            = true
 EOT
   filename = "../secret.backend.tfvars"
 }
-
-//Add "backConf" to bucket
-# resource "yandex_storage_object" "object-1" {
-#   access_key = yandex_iam_service_account_static_access_key.sa-static-key.access_key
-#   secret_key = yandex_iam_service_account_static_access_key.sa-static-key.secret_key
-#   bucket = yandex_storage_bucket.nikulin-bucket.bucket
-#   key = "terraform.tfstate"
-#   source = "../terraform.tfstate"
-#   acl = "private"
-#   depends_on = [ yandex_storage_bucket.nikulin-bucket ]
-# }

@@ -849,6 +849,8 @@ CONTAINER ID   IMAGE                              COMMAND                  CREAT
 
 - Образ успешно собран и приложение отвечает, отправим его в DockerHub:
 
+https://hub.docker.com/repository/docker/nikulinms/nginx-static-app/general
+
 ![img_9.png](img%2Fimg_9.png)
 ![img_10.png](img%2Fimg_10.png)
 
@@ -881,6 +883,253 @@ https://github.com/NikulinMS/test_app.git
 3. Дашборды в grafana отображающие состояние Kubernetes кластера.
 4. Http доступ к тестовому приложению.
 
+### Решение
+
+1. Для деплоя prometheus, grafana, alertmanager выбран вариант работы с helm charts
+
+- Создадим namespace ```monitoring```:
+```bash
+nikulinn@nikulin:~/other/nikulinms_diplom$ kubectl create namespace monitoring
+namespace/monitoring created
+nikulinn@nikulin:~/other/nikulinms_diplom$ kubectl get ns
+NAME              STATUS   AGE
+default           Active   11h
+kube-node-lease   Active   11h
+kube-public       Active   11h
+kube-system       Active   11h
+monitoring        Active   11s
+```
+
+- Подключим репозиторий с promutheus:
+```bash
+nikulinn@nikulin:~/other/nikulinms_diplom$ helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+WARNING: Kubernetes configuration file is group-readable. This is insecure. Location: /home/nikulinn/.kube/config
+WARNING: Kubernetes configuration file is world-readable. This is insecure. Location: /home/nikulinn/.kube/config
+"prometheus-community" has been added to your repositories
+nikulinn@nikulin:~/other/nikulinms_diplom$ helm repo update
+WARNING: Kubernetes configuration file is group-readable. This is insecure. Location: /home/nikulinn/.kube/config
+WARNING: Kubernetes configuration file is world-readable. This is insecure. Location: /home/nikulinn/.kube/config
+Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "prometheus-community" chart repository
+Update Complete. ⎈Happy Helming!⎈
+```
+
+- Задеплоим систему мониторинга:
+```bash
+nikulinn@nikulin:~/other/nikulinms_diplom$ helm repo update
+WARNING: Kubernetes configuration file is group-readable. This is insecure. Location: /home/nikulinn/.kube/config
+WARNING: Kubernetes configuration file is world-readable. This is insecure. Location: /home/nikulinn/.kube/config
+Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "prometheus-community" chart repository
+Update Complete. ⎈Happy Helming!⎈
+nikulinn@nikulin:~/other/nikulinms_diplom$ helm install stable prometheus-community/kube-prometheus-stack --namespace=monitoring
+WARNING: Kubernetes configuration file is group-readable. This is insecure. Location: /home/nikulinn/.kube/config
+WARNING: Kubernetes configuration file is world-readable. This is insecure. Location: /home/nikulinn/.kube/config
+NAME: stable
+LAST DEPLOYED: Tue Jul  9 11:58:42 2024
+NAMESPACE: monitoring
+STATUS: deployed
+REVISION: 1
+NOTES:
+kube-prometheus-stack has been installed. Check its status by running:
+  kubectl --namespace monitoring get pods -l "release=stable"
+
+Visit https://github.com/prometheus-operator/kube-prometheus for instructions on how to create & configure Alertmanager and Prometheus instances using the Operator. 
+```
+
+- Проверим состояние мониторинга:
+```bash
+nikulinn@nikulin:~/other/nikulinms_diplom$ kubectl get all -n monitoring
+NAME                                                         READY   STATUS    RESTARTS   AGE
+pod/alertmanager-stable-kube-prometheus-sta-alertmanager-0   2/2     Running   0          2m34s
+pod/prometheus-stable-kube-prometheus-sta-prometheus-0       2/2     Running   0          2m34s
+pod/stable-grafana-85fd7647c-pkbt4                           3/3     Running   0          2m42s
+pod/stable-kube-prometheus-sta-operator-59fff5bc49-smhd5     1/1     Running   0          2m42s
+pod/stable-kube-state-metrics-7946c5876d-qdrdk               1/1     Running   0          2m42s
+pod/stable-prometheus-node-exporter-4v8xm                    1/1     Running   0          2m42s
+pod/stable-prometheus-node-exporter-7hjtq                    1/1     Running   0          2m42s
+pod/stable-prometheus-node-exporter-v8rb9                    1/1     Running   0          2m42s
+
+NAME                                              TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)                      AGE
+service/alertmanager-operated                     ClusterIP   None            <none>        9093/TCP,9094/TCP,9094/UDP   2m35s
+service/prometheus-operated                       ClusterIP   None            <none>        9090/TCP                     2m34s
+service/stable-grafana                            ClusterIP   10.233.40.110   <none>        80/TCP                       2m43s
+service/stable-kube-prometheus-sta-alertmanager   ClusterIP   10.233.39.117   <none>        9093/TCP,8080/TCP            2m43s
+service/stable-kube-prometheus-sta-operator       ClusterIP   10.233.42.59    <none>        443/TCP                      2m43s
+service/stable-kube-prometheus-sta-prometheus     ClusterIP   10.233.7.35     <none>        9090/TCP,8080/TCP            2m43s
+service/stable-kube-state-metrics                 ClusterIP   10.233.54.207   <none>        8080/TCP                     2m43s
+service/stable-prometheus-node-exporter           ClusterIP   10.233.24.148   <none>        9100/TCP                     2m43s
+
+NAME                                             DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE
+daemonset.apps/stable-prometheus-node-exporter   3         3         3       3            3           kubernetes.io/os=linux   2m42s
+
+NAME                                                  READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/stable-grafana                        1/1     1            1           2m42s
+deployment.apps/stable-kube-prometheus-sta-operator   1/1     1            1           2m42s
+deployment.apps/stable-kube-state-metrics             1/1     1            1           2m42s
+
+NAME                                                             DESIRED   CURRENT   READY   AGE
+replicaset.apps/stable-grafana-85fd7647c                         1         1         1       2m42s
+replicaset.apps/stable-kube-prometheus-sta-operator-59fff5bc49   1         1         1       2m42s
+replicaset.apps/stable-kube-state-metrics-7946c5876d             1         1         1       2m42s
+
+NAME                                                                    READY   AGE
+statefulset.apps/alertmanager-stable-kube-prometheus-sta-alertmanager   1/1     2m35s
+statefulset.apps/prometheus-stable-kube-prometheus-sta-prometheus       1/1     2m34s
+```
+
+- Для подключения к мониторингу доступа извне требуется настроить сервисы prometheus и grafana, сменить тип сервиса и добавить внешний порт:
+```bash
+nikulinn@nikulin:~/other/nikulinms_diplom$ kubectl edit svc stable-kube-prometheus-sta-prometheus -n monitoring
+service/stable-kube-prometheus-sta-prometheus edited
+nikulinn@nikulin:~/other/nikulinms_diplom$ kubectl edit svc stable-grafana -n monitoring
+service/stable-grafana edited
+```
+```bash
+nikulinn@nikulin:~/other/nikulinms_diplom$ kubectl get svc -n monitoring
+NAME                                      TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)                         AGE
+alertmanager-operated                     ClusterIP   None            <none>        9093/TCP,9094/TCP,9094/UDP      9m19s
+prometheus-operated                       ClusterIP   None            <none>        9090/TCP                        9m18s
+stable-grafana                            NodePort    10.233.40.110   <none>        80:30200/TCP                    9m27s
+stable-kube-prometheus-sta-alertmanager   ClusterIP   10.233.39.117   <none>        9093/TCP,8080/TCP               9m27s
+stable-kube-prometheus-sta-operator       ClusterIP   10.233.42.59    <none>        443/TCP                         9m27s
+stable-kube-prometheus-sta-prometheus     NodePort    10.233.7.35     <none>        9090:30100/TCP,8080:31626/TCP   9m27s
+stable-kube-state-metrics                 ClusterIP   10.233.54.207   <none>        8080/TCP                        9m27s
+stable-prometheus-node-exporter           ClusterIP   10.233.24.148   <none>        9100/TCP                        9m27s
+```
+
+- Доступ к prometheus http://158.160.44.112:30100
+![img_11.png](img%2Fimg_11.png)
+
+- Доступ к grafana http://158.160.44.112:30200
+- Логин:```admin``` Пароль:```prom-operator```
+![img_12.png](img%2Fimg_12.png)
+
+2. Деплой приложения
+
+- Для деплоя приложения сначала создадим манифест [deployment.yaml](test_app%2Fdeploy%2Fdeployment.yaml).  Был выбран ```DaemonSet```, т.к. на текущий момент достаточно получения по 1 поду, но на каждой worker ноде:
+```yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: myapp
+  namespace: monitoring
+  labels:
+    app: myapp
+spec:
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      labels:
+        app: myapp
+    spec:
+      containers:
+      - name: myapp
+        image: nikulinms/nginx-static-app:latest
+      restartPolicy: Always
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: myapp-service
+  namespace: monitoring
+spec:
+  selector:
+    app: myapp
+  type: NodePort
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: 80
+    nodePort: 30080  
+   
+```
+- Развернем приложение:
+```bash
+nikulinn@nikulin:~/test_app$ kubectl create -f deploy/deployment.yaml
+daemonset.apps/myapp created
+service/myapp-service created
+
+nikulinn@nikulin:~/test_app$ kubectl get all -n monitoring
+NAME                                                         READY   STATUS    RESTARTS   AGE
+pod/alertmanager-stable-kube-prometheus-sta-alertmanager-0   2/2     Running   0          25m
+pod/myapp-8bwlh                                              1/1     Running   0          25s
+pod/myapp-dlx9b                                              1/1     Running   0          25s
+pod/prometheus-stable-kube-prometheus-sta-prometheus-0       2/2     Running   0          25m
+pod/stable-grafana-85fd7647c-pkbt4                           3/3     Running   0          25m
+pod/stable-kube-prometheus-sta-operator-59fff5bc49-smhd5     1/1     Running   0          25m
+pod/stable-kube-state-metrics-7946c5876d-qdrdk               1/1     Running   0          25m
+pod/stable-prometheus-node-exporter-4v8xm                    1/1     Running   0          25m
+pod/stable-prometheus-node-exporter-7hjtq                    1/1     Running   0          25m
+pod/stable-prometheus-node-exporter-v8rb9                    1/1     Running   0          25m
+
+NAME                                              TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)                         AGE
+service/alertmanager-operated                     ClusterIP   None            <none>        9093/TCP,9094/TCP,9094/UDP      25m
+service/myapp-service                             NodePort    10.233.32.91    <none>        80:30080/TCP                    25s
+service/prometheus-operated                       ClusterIP   None            <none>        9090/TCP                        25m
+service/stable-grafana                            NodePort    10.233.40.110   <none>        80:30200/TCP                    25m
+service/stable-kube-prometheus-sta-alertmanager   ClusterIP   10.233.39.117   <none>        9093/TCP,8080/TCP               25m
+service/stable-kube-prometheus-sta-operator       ClusterIP   10.233.42.59    <none>        443/TCP                         25m
+service/stable-kube-prometheus-sta-prometheus     NodePort    10.233.7.35     <none>        9090:30100/TCP,8080:31626/TCP   25m
+service/stable-kube-state-metrics                 ClusterIP   10.233.54.207   <none>        8080/TCP                        25m
+service/stable-prometheus-node-exporter           ClusterIP   10.233.24.148   <none>        9100/TCP                        25m
+
+NAME                                             DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE
+daemonset.apps/myapp                             2         2         2       2            2           <none>                   25s
+daemonset.apps/stable-prometheus-node-exporter   3         3         3       3            3           kubernetes.io/os=linux   25m
+
+NAME                                                  READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/stable-grafana                        1/1     1            1           25m
+deployment.apps/stable-kube-prometheus-sta-operator   1/1     1            1           25m
+deployment.apps/stable-kube-state-metrics             1/1     1            1           25m
+
+NAME                                                             DESIRED   CURRENT   READY   AGE
+replicaset.apps/stable-grafana-85fd7647c                         1         1         1       25m
+replicaset.apps/stable-kube-prometheus-sta-operator-59fff5bc49   1         1         1       25m
+replicaset.apps/stable-kube-state-metrics-7946c5876d             1         1         1       25m
+
+NAME                                                                    READY   AGE
+statefulset.apps/alertmanager-stable-kube-prometheus-sta-alertmanager   1/1     25m
+statefulset.apps/prometheus-stable-kube-prometheus-sta-prometheus       1/1     25m
+
+nikulinn@nikulin:~/test_app$ kubectl get pods,daemonset,service -n monitoring
+NAME                                                         READY   STATUS    RESTARTS   AGE
+pod/alertmanager-stable-kube-prometheus-sta-alertmanager-0   2/2     Running   0          27m
+pod/myapp-8bwlh                                              1/1     Running   0          2m48s
+pod/myapp-dlx9b                                              1/1     Running   0          2m48s
+pod/prometheus-stable-kube-prometheus-sta-prometheus-0       2/2     Running   0          27m
+pod/stable-grafana-85fd7647c-pkbt4                           3/3     Running   0          27m
+pod/stable-kube-prometheus-sta-operator-59fff5bc49-smhd5     1/1     Running   0          27m
+pod/stable-kube-state-metrics-7946c5876d-qdrdk               1/1     Running   0          27m
+pod/stable-prometheus-node-exporter-4v8xm                    1/1     Running   0          27m
+pod/stable-prometheus-node-exporter-7hjtq                    1/1     Running   0          27m
+pod/stable-prometheus-node-exporter-v8rb9                    1/1     Running   0          27m
+
+NAME                                             DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE
+daemonset.apps/myapp                             2         2         2       2            2           <none>                   2m48s
+daemonset.apps/stable-prometheus-node-exporter   3         3         3       3            3           kubernetes.io/os=linux   27m
+
+NAME                                              TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)                         AGE
+service/alertmanager-operated                     ClusterIP   None            <none>        9093/TCP,9094/TCP,9094/UDP      27m
+service/myapp-service                             NodePort    10.233.32.91    <none>        80:30080/TCP                    2m48s
+service/prometheus-operated                       ClusterIP   None            <none>        9090/TCP                        27m
+service/stable-grafana                            NodePort    10.233.40.110   <none>        80:30200/TCP                    27m
+service/stable-kube-prometheus-sta-alertmanager   ClusterIP   10.233.39.117   <none>        9093/TCP,8080/TCP               27m
+service/stable-kube-prometheus-sta-operator       ClusterIP   10.233.42.59    <none>        443/TCP                         27m
+service/stable-kube-prometheus-sta-prometheus     NodePort    10.233.7.35     <none>        9090:30100/TCP,8080:31626/TCP   27m
+service/stable-kube-state-metrics                 ClusterIP   10.233.54.207   <none>        8080/TCP                        27m
+service/stable-prometheus-node-exporter           ClusterIP   10.233.24.148   <none>        9100/TCP                        27m
+```
+
+- Проверим доступ до приложения http://158.160.44.112:30080
+![img_13.png](img%2Fimg_13.png)
+
+
 ---
 ### Установка и настройка CI/CD
 
@@ -898,6 +1147,170 @@ https://github.com/NikulinMS/test_app.git
 1. Интерфейс ci/cd сервиса доступен по http.
 2. При любом коммите в репозиторие с тестовым приложением происходит сборка и отправка в регистр Docker образа.
 3. При создании тега (например, v1.0.0) происходит сборка и отправка с соответствующим label в регистри, а также деплой соответствующего Docker образа в кластер Kubernetes.
+
+### Решение
+
+Для автоматической сборки docker image и деплоя приложения при изменении кода будет использоваться ```Github Actions```
+
+- Для работы CI-CD в ```Github Actions``` требуются учетные данные:
+- Создадим в Dockerhub секретный токен
+- Добавим в ```Github Actions``` секреты для работы с DockerHub и кластером Kubernetes
+
+```bash
+KUBE_CONFIG_DATA #дополнительно закодируем base64
+nikulinn@nikulin:~/other/nikulinms_diplom$ cat ~/.kube/config | base64 
+...
+bFdRVlJGSUV0RldTMHRMUzB0Q2c9PQo=
+
+DOCKERHUB_TOKEN
+
+DOCKERHUB_USERNAME
+```
+
+- Далее настроим Workflow для автоматической сборки и деплоя приложения:
+<details>
+<summary>Workflow</summary>
+
+```yml
+name: CI/CD Pipeline for nginx-static-app
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+env:
+  IMAGE_TAG: nikulinms/nginx-static-app
+  RELEASE_NAME: myapp
+  NAMESPACE: monitoring
+
+jobs:
+  build-and-push:
+    name: Build Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract version from tag or commit message
+        run: |
+          echo "GITHUB_REF: ${GITHUB_REF}"
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            VERSION=$(git log -1 --pretty=format:%B | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
+          fi
+          if [[ -z "$VERSION" ]]; then
+            echo "No version found in the commit message or tag"
+            exit 1
+          fi
+          VERSION=${VERSION//[[:space:]]/}  # Remove any spaces
+          echo "Using version: $VERSION"
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ env.IMAGE_TAG }}:${{ env.VERSION }}
+
+  deploy:
+    needs: build-and-push
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: List files in the working directory
+        run: |
+          ls -la
+
+      - name: Set up Kubernetes
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.21.0'
+
+      - name: Extract version from tag or commit message
+        run: |
+          echo "GITHUB_REF: ${GITHUB_REF}"
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            VERSION=$(git log -1 --pretty=format:%B | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' || echo "")
+          fi
+          if [[ -z "$VERSION" ]]; then
+            echo "No version found in the commit message or tag"
+            exit 1
+          fi
+          VERSION=${VERSION//[[:space:]]/}  # Remove any spaces
+          echo "Using version: $VERSION"
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Replace image tag in deployment.yaml
+        run: |
+          if [ ! -f ./deploy/deployment.yaml ]; then
+            echo "deployment.yaml not found in the current directory"
+            exit 1
+          fi
+          sed -i "s|image: nikulinms/nginx-static-app:.*|image: ${{ env.IMAGE_TAG }}:${{ env.VERSION }}|" ./deploy/deployment.yaml
+
+      - name: Create kubeconfig
+        run: |
+          mkdir -p $HOME/.kube/
+
+      - name: Authenticate to Kubernetes cluster
+        env:
+          KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
+        run: |
+          echo "${KUBE_CONFIG_DATA}" | base64 --decode > ${HOME}/.kube/config
+          kubectl config view
+          kubectl get nodes
+
+      - name: Apply Kubernetes manifests
+        run: |
+          kubectl apply -f ./deploy/deployment.yaml
+          kubectl get daemonsets -n monitoring
+          kubectl get pods -n monitoring
+          kubectl describe daemonset myapp -n monitoring
+          kubectl describe service myapp-service -n monitoring
+```
+
+</details>
+
+https://github.com/NikulinMS/test_app/actions
+
+![img_14.png](img%2Fimg_14.png)
+
+- Добавим тэг для приложения и отправим коммит с изменениями:
+
+Данные до изменений:
+
+![img_15.png](img%2Fimg_15.png)
+![img_16.png](img%2Fimg_16.png)
+
+Внесем правки:
+
+![img_17.png](img%2Fimg_17.png)
+![img_21.png](img%2Fimg_21.png)
+![img_20.png](img%2Fimg_20.png)
+![img_18.png](img%2Fimg_18.png)
+![img_19.png](img%2Fimg_19.png)
+
 
 ---
 ## Что необходимо для сдачи задания?
